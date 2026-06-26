@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NEXUS — Multi-Platform Game Launcher</title>
+  <meta name="description" content="Your legendary unified game library: Steam, Epic, GOG, Xbox, and Ubisoft in one breathtaking interface.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #05050f; --bg2: #080816; --bg3: #0d0d20;
+      --glass: rgba(255,255,255,0.03); --glass-b: rgba(255,255,255,0.08); --glass-hov: rgba(255,255,255,0.07);
+      --text: #e8e8f0; --dim: #7a7a9a; --bright: #ffffff;
+      --primary: #6c63ff; --primary-dim: rgba(108,99,255,0.15); --primary-glow: rgba(108,99,255,0.5);
+      --cyan: #00d4ff; --cyan-glow: rgba(0,212,255,0.4);
+      --pink: #ff6b9d; --green: #4ade80; --amber: #fbbf24;
+      --sw: 240px; --hh: 64px;
+      --r: 16px; --rs: 8px; --rl: 24px;
+      --t: 0.3s cubic-bezier(0.4,0,0.2,1); --tf: 0.15s cubic-bezier(0.4,0,0.2,1);
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); overflow-x: hidden; min-height: 100vh; }
+    ::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-track { background: var(--bg2); }
+    ::-webkit-scrollbar-thumb { background: rgba(108,99,255,0.4); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+
+    /* ── CANVAS ── */
+    #cv { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+
+    /* ── LOADER ── */
+    #ldr {
+      position: fixed; inset: 0; z-index: 1000; background: var(--bg);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px;
+      transition: opacity 0.6s ease, visibility 0.6s ease;
+    }
+    #ldr.gone { opacity: 0; visibility: hidden; }
+    .l-logo {
+      font-family: 'Orbitron', monospace; font-size: 72px; font-weight: 900; letter-spacing: 0.18em;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      animation: logoGlow 2s ease-in-out infinite;
+    }
+    @keyframes logoGlow {
+      0%,100% { filter: drop-shadow(0 0 10px rgba(108,99,255,0.9)); }
+      50% { filter: drop-shadow(0 0 50px rgba(108,99,255,1)) drop-shadow(0 0 100px rgba(0,212,255,0.5)); }
+    }
+    .l-sub { font-family: 'Rajdhani', sans-serif; font-size: 12px; color: var(--dim); letter-spacing: 0.3em; text-transform: uppercase; margin-top: -12px; }
+    .l-bar-wrap { width: 340px; height: 2px; background: rgba(255,255,255,0.05); border-radius: 1px; overflow: hidden; }
+    .l-bar { height: 100%; background: linear-gradient(90deg, var(--primary), var(--cyan)); width: 0%; animation: lbar 1.9s cubic-bezier(0.4,0,0.2,1) forwards; }
+    @keyframes lbar { to { width: 100%; } }
+    .l-msg { font-family: 'Rajdhani', sans-serif; font-size: 11px; color: var(--dim); letter-spacing: 0.25em; text-transform: uppercase; animation: blink 1.2s ease infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+    .l-dots { display: flex; gap: 16px; }
+    .l-dot { width: 8px; height: 8px; border-radius: 50%; animation: dotPop 1.4s ease-in-out infinite; }
+    .l-dot:nth-child(1){background:#1a9fff;animation-delay:0s}
+    .l-dot:nth-child(2){background:#f5821f;animation-delay:.18s}
+    .l-dot:nth-child(3){background:#a855f7;animation-delay:.36s}
+    .l-dot:nth-child(4){background:#52b043;animation-delay:.54s}
+    .l-dot:nth-child(5){background:#0085ca;animation-delay:.72s}
+    @keyframes dotPop { 0%,100%{transform:scale(1);opacity:.35} 50%{transform:scale(2.2);opacity:1;box-shadow:0 0 14px currentColor} }
+
+    /* ── APP ── */
+    #app { position: relative; z-index: 1; display: flex; min-height: 100vh; opacity: 0; transition: opacity 0.8s ease; }
+    #app.on { opacity: 1; }
+
+    /* ── SIDEBAR ── */
+    #sb {
+      position: fixed; left: 0; top: 0; width: var(--sw); height: 100vh;
+      background: rgba(5,5,15,0.97); backdrop-filter: blur(24px);
+      border-right: 1px solid var(--glass-b); display: flex; flex-direction: column;
+      z-index: 100; overflow: hidden;
+    }
+    #sb::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--primary),var(--cyan),transparent); }
+
+    .sb-logo { padding: 22px 20px 18px; border-bottom: 1px solid var(--glass-b); }
+    .sb-logo-text { font-family: 'Orbitron', monospace; font-size: 22px; font-weight: 900; letter-spacing: 0.15em; background: linear-gradient(135deg, var(--primary), var(--cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .sb-logo-dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--cyan); margin-left: 2px; vertical-align: super; box-shadow: 0 0 8px var(--cyan); animation: blink 2s ease infinite; }
+    .sb-logo-sub { font-size: 9px; color: var(--dim); letter-spacing: 0.2em; text-transform: uppercase; margin-top: 3px; font-family: 'Rajdhani', sans-serif; }
+
+    .sb-sec { padding: 14px 12px 6px; }
+    .sb-sec-lbl { font-size: 10px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--dim); padding: 0 8px; margin-bottom: 6px; }
+
+    .plat-btn {
+      display: flex; align-items: center; gap: 10px; width: 100%;
+      padding: 10px 12px; background: transparent; border: 1px solid transparent;
+      border-radius: var(--rs); color: var(--dim); font-family: 'Inter', sans-serif;
+      font-size: 13px; font-weight: 500; cursor: pointer; transition: all var(--tf);
+      text-align: left; margin-bottom: 2px;
+    }
+    .plat-btn:hover { color: var(--text); background: var(--glass-hov); border-color: var(--glass-b); }
+    .plat-btn.on { background: var(--primary-dim); border-color: rgba(108,99,255,0.3); color: var(--bright); }
+    .plat-btn.on .pdot { box-shadow: 0 0 14px currentColor; transform: scale(1.4); }
+    .pdot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; transition: all var(--t); }
+    .pc { margin-left: auto; font-size: 11px; color: var(--dim); background: rgba(255,255,255,0.06); padding: 1px 7px; border-radius: 10px; font-family: 'Rajdhani', sans-serif; font-weight: 600; }
+
+    .flt-btn { display: flex; align-items: center; gap: 7px; padding: 8px 12px; background: transparent; border: 1px solid transparent; border-radius: var(--rs); color: var(--dim); font-family: 'Inter', sans-serif; font-size: 12px; cursor: pointer; transition: all var(--tf); width: 100%; text-align: left; margin-bottom: 2px; }
+    .flt-btn:hover { color: var(--text); background: var(--glass-hov); }
+    .flt-btn.on { color: var(--bright); background: var(--glass-hov); border-color: var(--glass-b); }
+
+    .sb-stats { margin-top: auto; padding: 14px 12px; border-top: 1px solid var(--glass-b); }
+    .sbst-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 8px; }
+    .sbst-lbl { font-size: 11px; color: var(--dim); }
+    .sbst-val { font-family: 'Rajdhani', sans-serif; font-size: 18px; font-weight: 700; background: linear-gradient(90deg, var(--primary), var(--cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+
+    /* ── MAIN ── */
+    #mn { margin-left: var(--sw); flex: 1; min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* ── HEADER ── */
+    #hdr {
+      position: sticky; top: 0; z-index: 50; height: var(--hh);
+      background: rgba(5,5,15,0.88); backdrop-filter: blur(24px);
+      border-bottom: 1px solid var(--glass-b); display: flex; align-items: center;
+      padding: 0 28px; gap: 16px;
+    }
+    #hdr::after { content:''; position:absolute; bottom:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,rgba(108,99,255,0.4),rgba(0,212,255,0.3),transparent); }
+
+    .srch { flex: 1; max-width: 480px; position: relative; }
+    .srch-ico { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--dim); font-size: 14px; pointer-events: none; }
+    #qi { width: 100%; padding: 10px 16px 10px 40px; background: var(--glass); border: 1px solid var(--glass-b); border-radius: var(--r); color: var(--text); font-family: 'Inter', sans-serif; font-size: 14px; transition: all var(--t); outline: none; }
+    #qi::placeholder { color: var(--dim); }
+    #qi:focus { border-color: rgba(108,99,255,0.5); background: rgba(108,99,255,0.05); box-shadow: 0 0 0 3px rgba(108,99,255,0.1); }
+
+    .hdr-right { display: flex; gap: 8px; align-items: center; margin-left: auto; }
+    .v-btn { padding: 8px 10px; background: transparent; border: 1px solid transparent; border-radius: var(--rs); color: var(--dim); cursor: pointer; transition: all var(--tf); font-size: 16px; line-height: 1; }
+    .v-btn:hover { color: var(--text); background: var(--glass-hov); border-color: var(--glass-b); }
+    .v-btn.on { color: var(--primary); background: var(--primary-dim); border-color: rgba(108,99,255,0.3); }
+    .srt { padding: 8px 12px; background: var(--glass); border: 1px solid var(--glass-b); border-radius: var(--rs); color: var(--dim); font-family: 'Inter', sans-serif; font-size: 12px; cursor: pointer; outline: none; transition: all var(--tf); }
+    .srt:hover { border-color: rgba(108,99,255,0.3); color: var(--text); }
+
+    /* ── CONTENT ── */
+    #cnt { padding: 0 28px 60px; flex: 1; }
+
+    /* ── FEATURED ── */
+    #feat {
+      margin: 28px 0; position: relative; border-radius: var(--rl); overflow: hidden;
+      height: 340px; cursor: pointer; transition: transform var(--t);
+      border: 1px solid var(--glass-b); box-shadow: 0 8px 48px rgba(0,0,0,0.6);
+    }
+    #feat:hover { transform: scale(1.004); }
+    .f-bg { position: absolute; inset: 0; transition: filter var(--t); }
+    #feat:hover .f-bg { filter: brightness(1.08); }
+    .f-bg::after { content:''; position:absolute; inset:0; background:linear-gradient(110deg,rgba(5,5,15,.97) 0%,rgba(5,5,15,.72) 50%,rgba(5,5,15,.12) 100%); }
+    .f-art { position: absolute; right: 4%; top: 50%; transform: translateY(-50%); font-size: 210px; opacity: 0.13; user-select: none; transition: transform var(--t), opacity var(--t); filter: blur(1px); }
+    #feat:hover .f-art { opacity: 0.22; transform: translateY(-50%) scale(1.12) rotate(6deg); }
+    .f-particles { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+    .fp { position: absolute; border-radius: 50%; animation: fpDrift linear infinite; }
+    @keyframes fpDrift { 0%{transform:translateY(100%);opacity:0} 8%{opacity:0.9} 92%{opacity:0.5} 100%{transform:translateY(-5%);opacity:0} }
+    .f-cont { position: relative; z-index: 2; padding: 44px 52px; height: 100%; display: flex; flex-direction: column; justify-content: center; max-width: 60%; }
+    .f-eye { font-size: 10px; color: var(--cyan); letter-spacing: 0.22em; text-transform: uppercase; font-family: 'Rajdhani', sans-serif; font-weight: 600; margin-bottom: 10px; }
+    .f-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 13px; border-radius: 20px; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 14px; width: fit-content; backdrop-filter: blur(10px); border: 1px solid; }
+    .f-title { font-family: 'Orbitron', monospace; font-size: 42px; font-weight: 900; line-height: 1.05; color: var(--bright); margin-bottom: 10px; text-shadow: 0 2px 30px rgba(0,0,0,0.6); }
+    .f-sub { font-size: 13px; color: var(--dim); margin-bottom: 20px; }
+    .f-meta { display: flex; gap: 22px; align-items: center; margin-bottom: 28px; }
+    .f-rating { display: flex; align-items: center; gap: 5px; font-family: 'Rajdhani', sans-serif; font-size: 22px; font-weight: 700; color: var(--amber); }
+    .f-stat { font-size: 12px; color: var(--dim); } .f-stat strong { color: var(--text); font-weight: 600; }
+    .f-acts { display: flex; gap: 12px; }
+
+    .btn-p { padding: 13px 30px; background: var(--primary); border: none; border-radius: var(--rs); color: white; font-family: 'Rajdhani', sans-serif; font-size: 15px; font-weight: 700; letter-spacing: 0.06em; cursor: pointer; transition: all var(--tf); text-transform: uppercase; position: relative; overflow: hidden; }
+    .btn-p::after { content:''; position:absolute; inset:0; background:linear-gradient(135deg,rgba(255,255,255,0.12),transparent); }
+    .btn-p:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(108,99,255,0.55); }
+    .btn-g { padding: 13px 26px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.15); border-radius: var(--rs); color: var(--text); font-family: 'Rajdhani', sans-serif; font-size: 15px; font-weight: 600; letter-spacing: 0.05em; cursor: pointer; transition: all var(--tf); text-transform: uppercase; }
+    .btn-g:hover { background: rgba(255,255,255,0.14); transform: translateY(-2px); }
+
+    /* ── SECTION HDR ── */
+    .sec-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .sec-ttl { font-family: 'Orbitron', monospace; font-size: 17px; font-weight: 700; color: var(--bright); display: flex; align-items: center; gap: 12px; }
+    .sec-ttl::before { content:''; display:block; width:4px; height:20px; background:linear-gradient(180deg,var(--primary),var(--cyan)); border-radius:2px; box-shadow:0 0 12px var(--primary-glow); }
+    .sec-cnt { font-size: 12px; color: var(--dim); font-family: 'Rajdhani', sans-serif; }
+
+    /* ── STATS ── */
+    #stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 28px; }
+    .sc {
+      padding: 20px; background: var(--glass); border: 1px solid var(--glass-b); border-radius: var(--r);
+      position: relative; overflow: hidden; cursor: default; transition: all var(--t);
+    }
+    .sc:hover { transform: translateY(-4px); border-color: var(--sc-c); box-shadow: 0 12px 40px rgba(0,0,0,0.4), 0 0 24px var(--sc-g); }
+    .sc::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse at top left,var(--sc-g),transparent 60%); opacity:.6; transition:opacity var(--t); }
+    .sc:hover::before { opacity:1; }
+    .sc-ico { font-size: 28px; margin-bottom: 12px; }
+    .sc-val { font-family: 'Orbitron', monospace; font-size: 36px; font-weight: 900; color: var(--bright); line-height: 1; margin-bottom: 4px; }
+    .sc-lbl { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.1em; }
+    .sc-bar { position: absolute; bottom: 0; left: 0; height: 2px; border-radius: 0 2px 2px 0; background: var(--sc-c); box-shadow: 0 0 8px var(--sc-g); transition: width 1.5s cubic-bezier(0.4,0,0.2,1); }
+
+    /* ── GRID ── */
+    #gg { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+    #gg.lv { grid-template-columns: 1fr; gap: 10px; }
+
+    .gc {
+      position: relative; border-radius: var(--r); overflow: hidden; cursor: pointer;
+      border: 1px solid var(--glass-b); background: var(--bg2);
+      transition: border-color var(--t), box-shadow var(--t);
+      animation: cIn 0.5s cubic-bezier(0.34,1.56,0.64,1) both;
+    }
+    @keyframes cIn { from{opacity:0;transform:translateY(22px) scale(.92)} to{opacity:1;transform:none} }
+    .gc:hover { border-color: var(--pc); box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px var(--pc), 0 0 40px var(--pg); z-index: 10; }
+
+    .gc-cov { height: 162px; position: relative; overflow: hidden; }
+    .gc-cov-inner { position: absolute; inset: 0; background: var(--cg); transition: transform var(--t); }
+    .gc:hover .gc-cov-inner { transform: scale(1.06); }
+    .gc-art { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 86px; opacity: .18; transition: transform var(--t), opacity var(--t); }
+    .gc:hover .gc-art { transform: scale(1.16) rotate(7deg); opacity: .28; }
+    .gc-shim { position:absolute; inset:0; background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.04) 50%,transparent 70%); background-size:200% 100%; animation:shim 3s linear infinite; }
+    @keyframes shim { 0%{background-position:-200% center} 100%{background-position:200% center} }
+    .gc-plat { position:absolute; top:10px; right:10px; padding:3px 10px; border-radius:20px; font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; background:rgba(0,0,0,.65); backdrop-filter:blur(10px); color:var(--pc); border:1px solid var(--pc); box-shadow:0 0 10px var(--pg); }
+    .gc-inst { position:absolute; top:11px; left:11px; width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green),0 0 20px rgba(74,222,128,.3); }
+    .gc-rat { position:absolute; bottom:10px; right:10px; display:flex; align-items:center; gap:4px; padding:3px 8px; background:rgba(0,0,0,.7); backdrop-filter:blur(10px); border-radius:10px; font-family:'Rajdhani',sans-serif; font-size:13px; font-weight:700; color:var(--amber); }
+
+    .gc-body { padding: 14px 16px 16px; }
+    .gc-ttl { font-family: 'Rajdhani', sans-serif; font-size: 16px; font-weight: 700; color: var(--bright); margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color var(--tf); }
+    .gc:hover .gc-ttl { color: var(--pc); }
+    .gc-gnr { font-size: 11px; color: var(--dim); margin-bottom: 10px; letter-spacing: .05em; }
+    .gc-tags { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 12px; }
+    .tag { padding: 3px 8px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.07); border-radius: 8px; font-size: 10px; color: var(--dim); transition: all var(--tf); }
+    .gc:hover .tag { background: var(--primary-dim); border-color: rgba(108,99,255,.3); color: var(--primary); }
+    .gc-ft { display: flex; align-items: center; justify-content: space-between; padding-top: 10px; border-top: 1px solid var(--glass-b); }
+    .gc-pt { font-size: 11px; color: var(--dim); display: flex; align-items: center; gap: 4px; }
+    .gc-btn { padding: 6px 14px; border-radius: var(--rs); font-family: 'Rajdhani', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: .05em; cursor: pointer; border: none; transition: all var(--tf); text-transform: uppercase; }
+    .gc-btn.ln { background: var(--pc); color: white; }
+    .gc-btn.ln:hover { opacity: .85; transform: translateY(-1px); box-shadow: 0 4px 16px var(--pg); }
+    .gc-btn.gt { background: transparent; border: 1px solid var(--glass-b); color: var(--dim); }
+    .gc-btn.gt:hover { border-color: var(--pc); color: var(--pc); }
+
+    /* list view */
+    #gg.lv .gc { display: flex; align-items: center; }
+    #gg.lv .gc-cov { width: 120px; height: 80px; flex-shrink: 0; border-radius: var(--r) 0 0 var(--r); }
+    #gg.lv .gc-art { font-size: 42px; }
+    #gg.lv .gc-body { flex: 1; display: flex; align-items: center; gap: 18px; padding: 12px 16px; }
+    #gg.lv .gc-ttl { min-width: 180px; margin-bottom: 0; }
+    #gg.lv .gc-gnr { margin-bottom: 0; }
+    #gg.lv .gc-tags { display: none; }
+    #gg.lv .gc-ft { border: none; padding: 0; margin-left: auto; flex-shrink: 0; }
+
+    /* empty */
+    #empty { display: none; flex-direction: column; align-items: center; justify-content: center; padding: 80px 20px; text-align: center; gap: 14px; }
+    #empty.on { display: flex; }
+    .emp-ico { font-size: 60px; opacity: .22; }
+    .emp-ttl { font-family: 'Orbitron', monospace; font-size: 18px; color: var(--dim); }
+    .emp-sub { font-size: 13px; color: var(--dim); max-width: 280px; line-height: 1.6; }
+
+    /* ── MODAL ── */
+    #mo { position:fixed; inset:0; z-index:200; background:rgba(0,0,0,.85); backdrop-filter:blur(12px); display:flex; align-items:center; justify-content:center; opacity:0; visibility:hidden; transition:all var(--t); padding:20px; }
+    #mo.on { opacity:1; visibility:visible; }
+    #md { background: var(--bg3); border: 1px solid var(--glass-b); border-radius: var(--rl); width: 100%; max-width: 780px; max-height: 90vh; overflow: hidden; position: relative; transform: scale(.88) translateY(24px); transition: all .35s cubic-bezier(0.34,1.56,0.64,1); box-shadow: 0 8px 48px rgba(0,0,0,.7); }
+    #mo.on #md { transform: none; }
+    .md-hero { height: 230px; position: relative; overflow: hidden; }
+    .md-hero-bg { position: absolute; inset: 0; }
+    .md-hero-bg::after { content:''; position:absolute; inset:0; background:linear-gradient(to bottom,rgba(5,5,15,.05),rgba(13,13,32,.96)); }
+    .md-hero-art { position:absolute; right:40px; top:50%; transform:translateY(-55%); font-size:130px; opacity:.12; user-select:none; }
+    .md-hero-cont { position:relative; z-index:2; padding:28px 36px; height:100%; display:flex; flex-direction:column; justify-content:flex-end; gap:5px; }
+    .md-ptag { display:inline-flex; align-items:center; gap:5px; padding:4px 12px; border-radius:20px; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; border:1px solid; width:fit-content; background:rgba(0,0,0,.5); }
+    .md-ttl { font-family:'Orbitron',monospace; font-size:30px; font-weight:900; color:var(--bright); line-height:1.1; }
+    .md-sub { font-size:13px; color:var(--dim); }
+    .md-cls { position:absolute; top:14px; right:14px; width:36px; height:36px; background:rgba(0,0,0,.55); backdrop-filter:blur(10px); border:1px solid var(--glass-b); border-radius:50%; color:var(--dim); font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all var(--tf); z-index:10; }
+    .md-cls:hover { color:white; background:rgba(220,38,38,.3); border-color:rgba(220,38,38,.5); transform:rotate(90deg); }
+    .md-body { padding:22px 36px 30px; overflow-y:auto; max-height:calc(90vh - 230px); }
+    .md-meta { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:18px; }
+    .md-mc { padding:12px; background:var(--glass); border:1px solid var(--glass-b); border-radius:var(--rs); text-align:center; }
+    .md-ml { font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:.1em; margin-bottom:5px; }
+    .md-mv { font-family:'Rajdhani',sans-serif; font-size:18px; font-weight:700; color:var(--bright); }
+    .md-desc { font-size:14px; color:var(--dim); line-height:1.75; margin-bottom:18px; }
+    .md-tags { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:20px; }
+    .md-tag { padding:6px 14px; background:var(--primary-dim); border:1px solid rgba(108,99,255,.3); border-radius:20px; font-size:12px; color:var(--primary); font-weight:500; }
+    .md-pt { margin-bottom:22px; }
+    .md-pt-hdr { display:flex; justify-content:space-between; font-size:12px; color:var(--dim); margin-bottom:7px; }
+    .md-pt-hdr span { color:var(--bright); font-weight:600; }
+    .pt-trk { height:6px; background:rgba(255,255,255,.06); border-radius:3px; overflow:hidden; }
+    .pt-fill { height:100%; border-radius:3px; background:linear-gradient(90deg,var(--primary),var(--cyan)); box-shadow:0 0 12px var(--primary-glow); transition:width 1.2s cubic-bezier(0.4,0,0.2,1); }
+    .md-acts { display:flex; gap:12px; }
+    .md-acts .btn-p, .md-acts .btn-g { flex:1; text-align:center; }
+
+    /* ── TOAST ── */
+    #tst { position:fixed; bottom:28px; right:28px; z-index:300; min-width:290px; padding:15px 20px; background:var(--bg3); border:1px solid var(--glass-b); border-left:3px solid var(--primary); border-radius:var(--rs); box-shadow:0 8px 48px rgba(0,0,0,.6); transform:translateX(130%); transition:transform .4s cubic-bezier(0.34,1.56,0.64,1); }
+    #tst.on { transform:translateX(0); }
+    .tst-t { font-weight:600; font-size:14px; color:var(--bright); margin-bottom:3px; }
+    .tst-m { font-size:12px; color:var(--dim); }
+
+    /* platform colour tokens */
+    .ps { --pc:#1a9fff; --pg:rgba(26,159,255,.35); }
+    .pe { --pc:#f5821f; --pg:rgba(245,130,31,.35); }
+    .pg { --pc:#a855f7; --pg:rgba(168,85,247,.35); }
+    .px { --pc:#52b043; --pg:rgba(82,176,67,.35); }
+    .pu { --pc:#0085ca; --pg:rgba(0,133,202,.35); }
+
+    .da { background: linear-gradient(135deg,var(--primary),var(--cyan)); }
+    .ds { background:#1a9fff; } .de { background:#f5821f; } .dg { background:#a855f7; }
+    .dx { background:#52b043; } .du { background:#0085ca; }
+
+    /* responsive */
+    @media(max-width:1100px){ #stats{grid-template-columns:repeat(2,1fr)} }
+    @media(max-width:900px){
+      :root{--sw:60px}
+      .sb-logo-sub,.plat-btn .lbl,.pc,.sb-stats,.sb-sec-lbl,.flt-sec{display:none}
+      .plat-btn{justify-content:center;padding:12px 8px}
+      .sb-logo{padding:16px 8px;text-align:center}
+    }
+    @media(max-width:640px){
+      :root{--sw:0px}
+      #sb{display:none} #mn{margin-left:0}
+      #stats{grid-template-columns:repeat(2,1fr)}
+      .f-cont{max-width:100%;padding:24px}
+      .f-title{font-size:28px}
+      .md-meta{grid-template-columns:repeat(2,1fr)}
+    }
+
+    /* scanline overlay */
+    body::after { content:''; position:fixed; inset:0; background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.022) 3px,rgba(0,0,0,.022) 4px); pointer-events:none; z-index:997; }
+  </style>
+</head>
+<body>
+
+<canvas id="cv"></canvas>
+
+<div id="ldr">
+  <div class="l-logo">NEXUS</div>
+  <div class="l-sub">Multi-Platform Game Launcher</div>
+  <div class="l-bar-wrap"><div class="l-bar"></div></div>
+  <div class="l-msg">Synchronizing libraries across all platforms...</div>
+  <div class="l-dots">
+    <div class="l-dot"></div><div class="l-dot"></div><div class="l-dot"></div>
+    <div class="l-dot"></div><div class="l-dot"></div>
+  </div>
+</div>
+
+<div id="app">
+  <aside id="sb">
+    <div class="sb-logo">
+      <div class="sb-logo-text">NEXUS<span class="sb-logo-dot"></span></div>
+      <div class="sb-logo-sub">Game Launcher v1.0</div>
+    </div>
+    <div class="sb-sec">
+      <div class="sb-sec-lbl">Platforms</div>
+      <button class="plat-btn on" data-p="all"><span class="pdot da"></span><span class="lbl">All Games</span><span class="pc" id="ca">0</span></button>
+      <button class="plat-btn" data-p="steam"><span class="pdot ds"></span><span class="lbl">Steam</span><span class="pc" id="cs">0</span></button>
+      <button class="plat-btn" data-p="epic"><span class="pdot de"></span><span class="lbl">Epic Games</span><span class="pc" id="ce">0</span></button>
+      <button class="plat-btn" data-p="gog"><span class="pdot dg"></span><span class="lbl">GOG</span><span class="pc" id="cg">0</span></button>
+      <button class="plat-btn" data-p="xbox"><span class="pdot dx"></span><span class="lbl">Xbox</span><span class="pc" id="cx">0</span></button>
+      <button class="plat-btn" data-p="ubisoft"><span class="pdot du"></span><span class="lbl">Ubisoft</span><span class="pc" id="cu">0</span></button>
+    </div>
+    <div class="sb-sec flt-sec">
+      <div class="sb-sec-lbl">Status</div>
+      <button class="flt-btn on" data-s="all">🎮 <span class="lbl">All</span></button>
+      <button class="flt-btn" data-s="inst">💾 <span class="lbl">Installed</span></button>
+      <button class="flt-btn" data-s="cloud">☁️ <span class="lbl">Not Installed</span></button>
+    </div>
+    <div class="sb-stats">
+      <div class="sbst-row"><span class="sbst-lbl">Hours Played</span><span class="sbst-val" id="sH">0</span></div>
+      <div class="sbst-row"><span class="sbst-lbl">Installed</span><span class="sbst-val" id="sI">0</span></div>
+      <div class="sbst-row"><span class="sbst-lbl">Platforms</span><span class="sbst-val">5</span></div>
+    </div>
+  </aside>
+
+  <div id="mn">
+    <header id="hdr">
+      <div class="srch">
+        <span class="srch-ico">⌕</span>
+        <input type="text" id="qi" placeholder="Search games, genres, developers...">
+      </div>
+      <div class="hdr-right">
+        <select class="srt" id="srt"><option value="title">A → Z</option><option value="rating">Top Rated</option><option value="playtime">Most Played</option><option value="year">Newest</option></select>
+        <button class="v-btn on" id="vG" title="Grid view">⊞</button>
+        <button class="v-btn" id="vL" title="List view">☰</button>
+      </div>
+    </header>
+
+    <div id="cnt">
+
+      <div id="feat" onclick="openM(window._fi||0)">
+        <div class="f-bg" id="fBg"></div>
+        <div class="f-particles" id="fPar"></div>
+        <div class="f-art" id="fArt"></div>
+        <div class="f-cont">
+          <div class="f-eye">FEATURED GAME</div>
+          <div class="f-badge" id="fBdg"></div>
+          <div class="f-title" id="fTtl"></div>
+          <div class="f-sub" id="fSub"></div>
+          <div class="f-meta">
+            <div class="f-rating">★ <span id="fRat"></span></div>
+            <div class="f-stat" id="fGnr"></div>
+            <div class="f-stat" id="fTim"></div>
+          </div>
+          <div class="f-acts">
+            <button class="btn-p" id="fAct" onclick="event.stopPropagation()">▶ LAUNCH</button>
+            <button class="btn-g" onclick="event.stopPropagation();openM(window._fi||0)">Details</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="stats">
+        <div class="sc" style="--sc-c:#6c63ff;--sc-g:rgba(108,99,255,.2)"><div class="sc-ico">🎮</div><div class="sc-val" id="stT">0</div><div class="sc-lbl">Total Games</div><div class="sc-bar" style="width:100%"></div></div>
+        <div class="sc" style="--sc-c:#4ade80;--sc-g:rgba(74,222,128,.18)"><div class="sc-ico">💾</div><div class="sc-val" id="stI">0</div><div class="sc-lbl">Installed</div><div class="sc-bar" id="stIB" style="width:0%"></div></div>
+        <div class="sc" style="--sc-c:#00d4ff;--sc-g:rgba(0,212,255,.18)"><div class="sc-ico">⏱</div><div class="sc-val" id="stH">0</div><div class="sc-lbl">Hours Played</div><div class="sc-bar" style="width:62%;background:#00d4ff;box-shadow:0 0 8px rgba(0,212,255,.5)"></div></div>
+        <div class="sc" style="--sc-c:#fbbf24;--sc-g:rgba(251,191,36,.18)"><div class="sc-ico">★</div><div class="sc-val" id="stR">0</div><div class="sc-lbl">Avg Rating</div><div class="sc-bar" style="width:87%;background:#fbbf24;box-shadow:0 0 8px rgba(251,191,36,.5)"></div></div>
+      </div>
+
+      <div class="sec-hdr">
+        <div class="sec-ttl">Your Library</div>
+        <div class="sec-cnt" id="gcnt"></div>
+      </div>
+      <div id="gg"></div>
+      <div id="empty"><div class="emp-ico">🔭</div><div class="emp-ttl">No games found</div><div class="emp-sub">Try adjusting your search or filter.</div></div>
+
+    </div>
+  </div>
+</div>
+
+<div id="mo" onclick="if(event.target===this)closeM()">
+  <div id="md">
+    <button class="md-cls" onclick="closeM()">✕</button>
+    <div class="md-hero"><div class="md-hero-bg" id="mBg"></div><div class="md-hero-art" id="mArt"></div>
+      <div class="md-hero-cont"><div class="md-ptag" id="mTag"></div><div class="md-ttl" id="mTtl"></div><div class="md-sub" id="mSub"></div></div>
+    </div>
+    <div class="md-body">
+      <div class="md-meta" id="mMeta"></div>
+      <div class="md-desc" id="mDesc"></div>
+      <div class="md-tags" id="mTags"></div>
+      <div class="md-pt" id="mPt"></div>
+      <div class="md-acts" id="mActs"></div>
+    </div>
+  </div>
+</div>
+
+<div id="tst"><div class="tst-t" id="tT"></div><div class="tst-m" id="tM"></div></div>
+
+<script>
+/* ═══ DATA ═══ */
+const G=[
+  {id:1,t:"The Witcher 3",sub:"Wild Hunt — Complete Edition",p:"GOG",g:"Open World RPG",yr:2015,dev:"CD Projekt Red",rat:9.8,inst:true,h:142,sz:"50 GB",mh:200,tags:["Open World","Fantasy","Story Rich","RPG"],desc:"As war rages on throughout the Northern Realms, you take on the role of a professional monster hunter, tasked with finding a child of prophecy — a living weapon that can alter the shape of the world.",gr:"linear-gradient(140deg,#0a1f0a,#1a3d10 40%,#6b4f0a 75%,#c4860f)",ar:"🐺"},
+  {id:2,t:"Cyberpunk 2077",sub:"Phantom Liberty Expansion",p:"Steam",g:"Action RPG",yr:2023,dev:"CD Projekt Red",rat:8.8,inst:false,h:0,sz:"70 GB",mh:100,tags:["Open World","Sci-Fi","Action","Night City"],desc:"You play as V, a mercenary outlaw going after a one-of-a-kind implant — the key to immortality. A world of cyber-enhanced criminals and ruthless power plays awaits you.",gr:"linear-gradient(140deg,#060610,#12082a 40%,#8b0023 72%,#ff4500)",ar:"🤖"},
+  {id:3,t:"Hades",sub:"Supergiant's Roguelite Masterpiece",p:"Epic",g:"Roguelite Action",yr:2020,dev:"Supergiant Games",rat:9.5,inst:true,h:78,sz:"15 GB",mh:150,tags:["Roguelite","Mythology","Action","Indie"],desc:"Defy the god of the dead as you hack and slash out of the Underworld in this critically acclaimed rogue-like dungeon crawler from the creators of Bastion and Transistor.",gr:"linear-gradient(140deg,#1a0505,#3d0a0a 30%,#8b1a1a 62%,#e63946)",ar:"⚡"},
+  {id:4,t:"Forza Horizon 5",sub:"Premium Edition — Mexico",p:"Xbox",g:"Open-World Racing",yr:2021,dev:"Playground Games",rat:9.2,inst:true,h:56,sz:"103 GB",mh:200,tags:["Racing","Open World","Arcade","Multiplayer"],desc:"Lead breathtaking expeditions across the vibrant open world of Mexico with limitless, fun driving action in hundreds of the world's greatest cars in stunning 4K.",gr:"linear-gradient(140deg,#0a1a2a,#0d3b5c 40%,#1e8c60 72%,#f59e0b)",ar:"🏎"},
+  {id:5,t:"Assassin's Creed Valhalla",sub:"Dawn of Ragnarök Edition",p:"Ubisoft",g:"Action RPG",yr:2020,dev:"Ubisoft Montreal",rat:8.1,inst:false,h:0,sz:"67 GB",mh:120,tags:["Open World","Norse","Action","Historical"],desc:"Become Eivor, a mighty Viking raider and lead your clan from icy desolation in Norway to a new home amid the lush farmlands of ninth-century England.",gr:"linear-gradient(140deg,#050a1a,#0a1f3d 40%,#1a3a6b 72%,#4a8fd4)",ar:"🪓"},
+  {id:6,t:"Elden Ring",sub:"Shadow of the Erdtree",p:"Steam",g:"Action RPG",yr:2022,dev:"FromSoftware",rat:9.6,inst:true,h:124,sz:"60 GB",mh:200,tags:["Soulslike","Fantasy","Open World","Brutal"],desc:"Rise, Tarnished, and be guided by grace to brandish the power of the Elden Ring and become an Elden Lord in the Lands Between — a vast world where ancient history lives.",gr:"linear-gradient(140deg,#0d0800,#2a1a05 30%,#6b4a0a 62%,#d4af37)",ar:"👑"},
+  {id:7,t:"Death Stranding",sub:"Director's Cut",p:"Epic",g:"Action Adventure",yr:2019,dev:"Kojima Productions",rat:8.4,inst:false,h:0,sz:"55 GB",mh:80,tags:["Open World","Post-Apocalyptic","Art House","Delivery"],desc:"In the near future, mysterious explosions have rocked the globe. Play as Sam Porter Bridges to reconnect a fractured society and save mankind from extinction.",gr:"linear-gradient(140deg,#020408,#04081a 40%,#081830 72%,#0a3050)",ar:"📦"},
+  {id:8,t:"Control",sub:"Ultimate Edition",p:"GOG",g:"Action Adventure",yr:2019,dev:"Remedy Entertainment",rat:8.9,inst:true,h:31,sz:"38 GB",mh:60,tags:["Supernatural","Mystery","TPS","Brutalism"],desc:"A corruptive presence has invaded the Federal Bureau of Control. You are Jesse Faden, the Bureau's new Director. Battle through the Oldest House and regain control.",gr:"linear-gradient(140deg,#0a0a0a,#1a1a1a 30%,#3d0505 62%,#8b0000)",ar:"🔮"},
+  {id:9,t:"Sea of Thieves",sub:"Season 12",p:"Xbox",g:"Open-World Adventure",yr:2018,dev:"Rare",rat:8.3,inst:false,h:0,sz:"47 GB",mh:100,tags:["Multiplayer","Pirates","Cooperative","Open World"],desc:"A shared world adventure game that puts you and your crew of pirates out on the open seas. Sail, explore, and battle with the freedom to approach the world however you want.",gr:"linear-gradient(140deg,#030a1a,#051428 40%,#0a2545 72%,#0d4080)",ar:"⚓"},
+  {id:10,t:"Half-Life: Alyx",sub:"VR Masterpiece by Valve",p:"Steam",g:"First-Person Shooter",yr:2020,dev:"Valve",rat:9.7,inst:true,h:25,sz:"67 GB",mh:50,tags:["VR","FPS","Sci-Fi","Atmospheric"],desc:"Set between Half-Life and Half-Life 2, Alyx Vance and her father mount an early resistance to the Combine's brutal occupation of Earth in this landmark VR achievement.",gr:"linear-gradient(140deg,#080808,#0a1a10 30%,#1a3320 62%,#f5821f)",ar:"🔦"},
+  {id:11,t:"Returnal",sub:"Ascension Update",p:"Epic",g:"Roguelike Shooter",yr:2021,dev:"Housemarque",rat:8.9,inst:false,h:0,sz:"54 GB",mh:80,tags:["Roguelike","Sci-Fi","Bullet Hell","Psychological"],desc:"Break the cycle of chaos in an ever-changing alien world as you fight to survive a secret buried in the ruins of an ancient civilisation that obliterated itself.",gr:"linear-gradient(140deg,#020208,#040818 40%,#061030 72%,#0a1850)",ar:"🌀"},
+  {id:12,t:"Immortals Fenyx Rising",sub:"A New God DLC Bundle",p:"Ubisoft",g:"Action Adventure",yr:2020,dev:"Ubisoft Quebec",rat:8.2,inst:true,h:44,sz:"29 GB",mh:80,tags:["Mythology","Open World","Puzzle","Colorful"],desc:"A new winged demigod, battle powerful Mythical monsters, master the legendary weapons of Olympus, and overcome the puzzles of the Vaults of Tartaros.",gr:"linear-gradient(140deg,#0a0a05,#1a1a0a 30%,#3d3a0a 62%,#d4b800)",ar:"⚔️"}
+];
+
+const PL={steam:{c:"#1a9fff",g:"rgba(26,159,255,.35)",cl:"ps"},epic:{c:"#f5821f",g:"rgba(245,130,31,.35)",cl:"pe"},gog:{c:"#a855f7",g:"rgba(168,85,247,.35)",cl:"pg"},xbox:{c:"#52b043",g:"rgba(82,176,67,.35)",cl:"px"},ubisoft:{c:"#0085ca",g:"rgba(0,133,202,.35)",cl:"pu"}};
+function pk(p){return p.toLowerCase().replace(/ /g,'');}
+function pi(p){return PL[pk(p)]||{c:'#888',g:'rgba(128,128,128,.3)',cl:''};}
+
+/* ═══ STARFIELD ═══ */
+(function(){
+  const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+  let W,H,stars=[],neb=[];
+  function rsz(){W=cv.width=innerWidth;H=cv.height=innerHeight;}
+  function init(){
+    stars=Array.from({length:220},()=>({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.5+.2,op:Math.random()*.65+.1,spd:Math.random()*.25+.04,tw:Math.random()*Math.PI*2,tws:Math.random()*.02+.004,col:['#fff','#b0caff','#ffddb0','#d0b0ff'][~~(Math.random()*4)]}));
+    neb=Array.from({length:7},()=>({x:Math.random()*W,y:Math.random()*H,r:Math.random()*220+80,col:['rgba(108,99,255,','rgba(0,212,255,','rgba(255,107,157,'][~~(Math.random()*3)],op:Math.random()*.035+.008}));
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    neb.forEach(n=>{const gr=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,n.r);gr.addColorStop(0,n.col+n.op+')');gr.addColorStop(1,n.col+'0)');ctx.fillStyle=gr;ctx.beginPath();ctx.arc(n.x,n.y,n.r,0,Math.PI*2);ctx.fill();});
+    stars.forEach(s=>{
+      s.tw+=s.tws;const a=s.op*(.55+.45*Math.sin(s.tw));
+      ctx.save();ctx.globalAlpha=a;ctx.fillStyle=s.col;ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fill();
+      ctx.restore();
+      s.y+=s.spd*.08;if(s.y>H+4){s.y=-4;s.x=Math.random()*W;}
+    });
+    requestAnimationFrame(draw);
+  }
+  addEventListener('resize',()=>{rsz();init();});
+  rsz();init();draw();
+})();
+
+/* ═══ STATE ═══ */
+const S={p:'all',s:'all',q:'',sort:'title'};
+
+/* ═══ UTILS ═══ */
+function numAnim(el,to,dur=1100){const t0=performance.now();(function f(now){const p=Math.min(1,(now-t0)/dur),e=p<.5?4*p*p*p:1-Math.pow(-2*p+2,3)/2;el.textContent=Math.round(to*e);if(p<1)requestAnimationFrame(f);})(t0);}
+
+let tT;
+function toast(title,msg,color='#6c63ff'){
+  clearTimeout(tT);
+  const el=document.getElementById('tst');
+  el.style.borderLeftColor=color;
+  document.getElementById('tT').textContent=title;
+  document.getElementById('tM').textContent=msg;
+  el.classList.add('on');
+  tT=setTimeout(()=>el.classList.remove('on'),3800);
+}
+
+/* ═══ SETUP ═══ */
+function setup(){
+  const cn={all:G.length};
+  G.forEach(g=>{const k=pk(g.p);cn[k]=(cn[k]||0)+1;});
+  ['all','steam','epic','gog','xbox','ubisoft'].forEach(k=>{const el=document.getElementById('c'+k[0]);if(el)el.textContent=cn[k]||0;});
+  // fix: use full IDs
+  if(document.getElementById('ca'))document.getElementById('ca').textContent=cn.all;
+  if(document.getElementById('cs'))document.getElementById('cs').textContent=cn.steam||0;
+  if(document.getElementById('ce'))document.getElementById('ce').textContent=cn.epic||0;
+  if(document.getElementById('cg'))document.getElementById('cg').textContent=cn.gog||0;
+  if(document.getElementById('cx'))document.getElementById('cx').textContent=cn.xbox||0;
+  if(document.getElementById('cu'))document.getElementById('cu').textContent=cn.ubisoft||0;
+
+  const inst=G.filter(g=>g.inst).length;
+  const hrs=G.reduce((s,g)=>s+g.h,0);
+  const avg=(G.reduce((s,g)=>s+g.rat,0)/G.length).toFixed(1);
+  document.getElementById('sH').textContent=hrs;
+  document.getElementById('sI').textContent=inst;
+  numAnim(document.getElementById('stT'),G.length);
+  numAnim(document.getElementById('stI'),inst);
+  numAnim(document.getElementById('stH'),hrs);
+  document.getElementById('stR').textContent=avg;
+  setTimeout(()=>{const b=document.getElementById('stIB');if(b)b.style.width=(inst/G.length*100)+'%';},400);
+
+  const feat=G.find(g=>g.inst)||G[0];
+  window._fi=G.indexOf(feat);
+  const info=pi(feat.p);
+  document.getElementById('fBg').style.background=feat.gr;
+  document.getElementById('fArt').textContent=feat.ar;
+  const bdg=document.getElementById('fBdg');
+  bdg.textContent='● '+feat.p.toUpperCase();
+  bdg.style.color=info.c;bdg.style.borderColor=info.c;bdg.style.boxShadow='0 0 12px '+info.g;
+  document.getElementById('fTtl').textContent=feat.t;
+  document.getElementById('fSub').textContent=feat.sub;
+  document.getElementById('fRat').textContent=feat.rat;
+  document.getElementById('fGnr').innerHTML='<strong>'+feat.g+'</strong>';
+  if(feat.h>0)document.getElementById('fTim').innerHTML='⏱ <strong>'+feat.h+'h</strong>';
+  const fa=document.getElementById('fAct');
+  fa.style.background=info.c;
+  if(feat.inst){fa.textContent='▶ LAUNCH';fa.onclick=e=>{e.stopPropagation();doLaunch(window._fi);};}
+  else{fa.textContent='↓ DOWNLOAD';fa.onclick=e=>{e.stopPropagation();toast('Download Queued',feat.t+' added to queue.','#00d4ff');};}
+
+  // particles on featured
+  const fp=document.getElementById('fPar');
+  for(let i=0;i<14;i++){const d=document.createElement('div');d.className='fp';const sz=Math.random()*3+1;d.style.cssText=`width:${sz}px;height:${sz}px;left:${20+Math.random()*70}%;bottom:-10px;background:${info.c};opacity:.7;box-shadow:0 0 ${sz*3}px ${info.c};animation-duration:${4+Math.random()*6}s;animation-delay:${Math.random()*4}s;`;fp.appendChild(d);}
+
+  renderGrid();
+  toast('Welcome to NEXUS',G.length+' games synced across 5 platforms.','#4ade80');
+}
+
+/* ═══ GRID ═══ */
+function filt(){
+  let g=[...G];
+  if(S.p!=='all')g=g.filter(x=>pk(x.p)===S.p);
+  if(S.s==='inst')g=g.filter(x=>x.inst);
+  else if(S.s==='cloud')g=g.filter(x=>!x.inst);
+  if(S.q){const q=S.q.toLowerCase();g=g.filter(x=>x.t.toLowerCase().includes(q)||x.g.toLowerCase().includes(q)||x.dev.toLowerCase().includes(q)||x.p.toLowerCase().includes(q)||x.tags.some(t=>t.toLowerCase().includes(q)));}
+  if(S.sort==='rating')g.sort((a,b)=>b.rat-a.rat);
+  else if(S.sort==='playtime')g.sort((a,b)=>b.h-a.h);
+  else if(S.sort==='year')g.sort((a,b)=>b.yr-a.yr);
+  else g.sort((a,b)=>a.t.localeCompare(b.t));
+  return g;
+}
+
+function renderGrid(){
+  const games=filt();
+  const grid=document.getElementById('gg'),empty=document.getElementById('empty');
+  document.getElementById('gcnt').textContent=games.length+' game'+(games.length!==1?'s':'');
+  grid.innerHTML='';
+  if(!games.length){empty.classList.add('on');return;}
+  empty.classList.remove('on');
+  games.forEach((g,i)=>{
+    const info=pi(g.p);
+    const el=document.createElement('div');
+    el.className='gc '+info.cl;
+    el.style.cssText=`--pc:${info.c};--pg:${info.g};--cg:${g.gr};animation-delay:${i*.04}s`;
+    el.onclick=()=>openM(G.indexOf(g));
+    const tgs=g.tags.slice(0,2).map(t=>`<span class="tag">${t}</span>`).join('');
+    const pt=g.h>0?`<span class="gc-pt">⏱ ${g.h}h</span>`:`<span class="gc-pt" style="opacity:.4">Not played</span>`;
+    const btn=g.inst?`<button class="gc-btn ln" onclick="event.stopPropagation();doLaunch(${G.indexOf(g)})">▶ Play</button>`:`<button class="gc-btn gt" onclick="event.stopPropagation();doGet(${G.indexOf(g)})">↓ Get</button>`;
+    el.innerHTML=`<div class="gc-cov"><div class="gc-cov-inner"></div>${g.inst?'<div class="gc-inst"></div>':''}<div class="gc-art">${g.ar}</div><div class="gc-shim"></div><div class="gc-plat">${g.p}</div><div class="gc-rat">★ ${g.rat}</div></div><div class="gc-body"><div class="gc-ttl">${g.t}</div><div class="gc-gnr">${g.g} · ${g.yr}</div><div class="gc-tags">${tgs}</div><div class="gc-ft">${pt}${btn}</div></div>`;
+    grid.appendChild(el);
+    tilt(el);
+  });
+}
+
+function tilt(c){
+  c.addEventListener('mousemove',e=>{const r=c.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;c.style.transform=`perspective(900px) rotateY(${x*14}deg) rotateX(${-y*14}deg) scale(1.05)`;});
+  c.addEventListener('mouseleave',()=>c.style.transform='');
+}
+
+/* ═══ ACTIONS ═══ */
+function doLaunch(idx){
+  const g=G[idx];
+  if(!g.inst){toast('Not Installed',g.t+' must be downloaded first.','#f87171');return;}
+  const info=pi(g.p);
+  toast('🚀 Launching '+g.t,'Opening via '+g.p+' launcher…',info.c);
+}
+function doGet(idx){
+  const g=G[idx];
+  toast('Download Queued',g.t+' ('+g.sz+') added to queue.','#00d4ff');
+}
+
+/* ═══ MODAL ═══ */
+function openM(idx){
+  const g=G[idx];if(!g)return;
+  const info=pi(g.p);
+  document.getElementById('mBg').style.background=g.gr;
+  document.getElementById('mArt').textContent=g.ar;
+  const tag=document.getElementById('mTag');
+  tag.textContent=g.p.toUpperCase();tag.style.color=info.c;tag.style.borderColor=info.c;tag.style.boxShadow='0 0 12px '+info.g;
+  document.getElementById('mTtl').textContent=g.t;
+  document.getElementById('mSub').textContent=g.sub+' · '+g.dev;
+  document.getElementById('mMeta').innerHTML=`<div class="md-mc"><div class="md-ml">Rating</div><div class="md-mv" style="color:var(--amber)">★ ${g.rat}</div></div><div class="md-mc"><div class="md-ml">Genre</div><div class="md-mv" style="font-size:13px;line-height:1.2">${g.g}</div></div><div class="md-mc"><div class="md-ml">Year</div><div class="md-mv">${g.yr}</div></div><div class="md-mc"><div class="md-ml">Size</div><div class="md-mv" style="font-size:15px">${g.sz}</div></div>`;
+  document.getElementById('mDesc').textContent=g.desc;
+  document.getElementById('mTags').innerHTML=g.tags.map(t=>`<span class="md-tag">${t}</span>`).join('');
+  const pct=g.mh>0?Math.min(100,(g.h/g.mh)*100):0;
+  document.getElementById('mPt').innerHTML=`<div class="md-pt-hdr"><span>Playtime Progress</span><span>${g.h} hours</span></div><div class="pt-trk"><div class="pt-fill" id="ptF" style="width:0%"></div></div>`;
+  setTimeout(()=>{const f=document.getElementById('ptF');if(f)f.style.width=pct+'%';},80);
+  document.getElementById('mActs').innerHTML=g.inst
+    ?`<button class="btn-p" onclick="doLaunch(${idx})" style="background:${info.c}">▶ LAUNCH GAME</button><button class="btn-g" onclick="toast('Added!','${g.t.replace(/'/g,"\\'")} added to favorites.','#fbbf24')">☆ Favorite</button>`
+    :`<button class="btn-p" onclick="doGet(${idx})" style="background:${info.c}">↓ DOWNLOAD — ${g.sz}</button><button class="btn-g" onclick="toast('Wishlist','${g.t.replace(/'/g,"\\'")} added to wishlist.','#a855f7')">♡ Wishlist</button>`;
+  document.getElementById('mo').classList.add('on');
+  document.body.style.overflow='hidden';
+}
+function closeM(){document.getElementById('mo').classList.remove('on');document.body.style.overflow='';}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeM();});
+
+/* ═══ EVENTS ═══ */
+document.querySelectorAll('[data-p]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-p]').forEach(x=>x.classList.remove('on'));b.classList.add('on');S.p=b.dataset.p;renderGrid();}));
+document.querySelectorAll('[data-s]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-s]').forEach(x=>x.classList.remove('on'));b.classList.add('on');S.s=b.dataset.s;renderGrid();}));
+let qT;
+document.getElementById('qi').addEventListener('input',e=>{clearTimeout(qT);qT=setTimeout(()=>{S.q=e.target.value.trim();renderGrid();},180);});
+document.getElementById('srt').addEventListener('change',e=>{S.sort=e.target.value;renderGrid();});
+document.getElementById('vG').addEventListener('click',()=>{document.getElementById('gg').classList.remove('lv');document.getElementById('vG').classList.add('on');document.getElementById('vL').classList.remove('on');});
+document.getElementById('vL').addEventListener('click',()=>{document.getElementById('gg').classList.add('lv');document.getElementById('vL').classList.add('on');document.getElementById('vG').classList.remove('on');renderGrid();});
+
+/* ═══ BOOT ═══ */
+window.addEventListener('load',()=>{
+  setTimeout(()=>{
+    document.getElementById('ldr').classList.add('gone');
+    document.getElementById('app').classList.add('on');
+    setup();
+  },2200);
+});
+</script>
+</body>
+</html>
