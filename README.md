@@ -2,19 +2,25 @@
 
 Connect your **Steam, Epic Games, GOG, or Xbox** account and see your entire game library in one place.
 
-> **Privacy:** Your OAuth tokens are stored only in your own browser (localStorage). The backend only holds a temporary session (8 hours) to forward API calls — it never stores your credentials or personal data on disk.
+> **Privacy:** Your OAuth tokens are stored only in your own browser (localStorage). The server holds an encrypted session token (8 hours) to proxy API calls — no credentials or personal data are ever written to disk or a database.
 
 ---
 
-## Live Demo
+## Deploy Options
 
-**GitHub Pages UI:** https://Arnav1771.github.io/multi-platform-game-launcher
+### Option A — Vercel (Recommended — frontend + backend together, free)
 
-The UI is a static site. It needs the FastAPI backend running to handle OAuth logins.
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Arnav1771/multi-platform-game-launcher)
 
----
+Vercel deploys frontend (`docs/`) and backend (`api/index.py`) **on the same domain** — no CORS, no backend URL to configure. After deploy:
 
-## One-Click Backend Deploy (Render — Free)
+1. In Vercel dashboard → **Settings → Environment Variables**, add:
+   - `SECRET_KEY` → any random string (e.g. output of `openssl rand -hex 32`)
+   - `STEAM_API_KEY` → your free key from [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey)
+   - Platform credentials for Epic/GOG/Xbox (see below — optional)
+2. Open your Vercel URL → click **Sign In with Steam** → your real library loads instantly
+
+### Option B — Render (backend) + GitHub Pages (frontend, free)
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Arnav1771/multi-platform-game-launcher)
 
