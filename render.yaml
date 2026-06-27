@@ -1,0 +1,44 @@
+services:
+  - type: web
+    name: nexus-game-launcher
+    env: python
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      # Set this AFTER first deploy — it will be https://nexus-game-launcher.onrender.com
+      - key: BACKEND_URL
+        value: https://nexus-game-launcher.onrender.com
+
+      # Your GitHub Pages URL
+      - key: FRONTEND_URL
+        value: https://Arnav1771.github.io/multi-platform-game-launcher
+
+      # Auto-generated secure secret — do NOT change after first deploy
+      - key: SECRET_KEY
+        generateValue: true
+
+      # ── Steam (free API key from steamcommunity.com/dev/apikey) ──
+      - key: STEAM_API_KEY
+        sync: false
+
+      # ── Epic Games (dev.epicgames.com/portal) ──
+      - key: EPIC_CLIENT_ID
+        sync: false
+      - key: EPIC_CLIENT_SECRET
+        sync: false
+
+      # ── GOG (gog.com/developer) ──
+      - key: GOG_CLIENT_ID
+        sync: false
+      - key: GOG_CLIENT_SECRET
+        sync: false
+
+      # ── Xbox / Microsoft (portal.azure.com → App registrations) ──
+      - key: MICROSOFT_CLIENT_ID
+        sync: false
+      - key: MICROSOFT_CLIENT_SECRET
+        sync: false

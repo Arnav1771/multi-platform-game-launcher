@@ -1,136 +1,112 @@
-# Multi-Platform Game Launcher
+# NEXUS — Multi-Platform Game Launcher
 
-A unified game library manager for Steam, Epic Games, GOG, Xbox Game Pass, and Ubisoft+.
+Connect your **Steam, Epic Games, GOG, or Xbox** account and see your entire game library in one place.
 
-## Table of Contents
+> **Privacy:** Your OAuth tokens are stored only in your own browser (localStorage). The backend only holds a temporary session (8 hours) to forward API calls — it never stores your credentials or personal data on disk.
 
-- [Introduction](#introduction)
-- [Features](#features)
-- [Tech Stack](#tech-stack)
-- [Installation](#installation)
-  - [Prerequisites](#prerequisites)
-  - [Backend Setup](#backend-setup)
-  - [Frontend Setup](#frontend-setup)
-  - [Docker Setup](#docker-setup)
-- [Usage](#usage)
-- [Contributing](#contributing)
-- [License](#license)
+---
 
-## Introduction
+## Live Demo
 
-The Multi-Platform Game Launcher aims to simplify the management of your diverse game library across multiple digital storefronts. Tired of juggling different launchers and remembering where you own which game? This project provides a single, elegant interface to view, organize, and launch your games, regardless of their origin.
+**GitHub Pages UI:** https://Arnav1771.github.io/multi-platform-game-launcher
 
-## Features
+The UI is a static site. It needs the FastAPI backend running to handle OAuth logins.
 
-*   **Unified Library View:** See all your games from Steam, Epic Games, GOG, Xbox Game Pass, and Ubisoft+ in one place.
-*   **Game Information:** Access details like game title, developer, publisher, genre, and cover art.
-*   **Launch Games:** Launch games directly from the launcher.
-*   **Platform Integration:** Seamless integration with major game platforms.
-*   **Customizable Organization:** Tag, sort, and filter your games to create personalized collections.
-*   **Cross-Platform Compatibility:** Designed to run on Windows, macOS, and Linux.
+---
+
+## One-Click Backend Deploy (Render — Free)
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Arnav1771/multi-platform-game-launcher)
+
+1. Click the button above
+2. Log in to Render (free account)
+3. Render reads `render.yaml` and creates the service automatically
+4. After deploy, copy the service URL (e.g. `https://nexus-game-launcher.onrender.com`)
+5. Go to your Render dashboard → **Environment** tab and set:
+   - `BACKEND_URL` → your Render service URL
+   - `STEAM_API_KEY` → your free key from [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey)
+6. Open the GitHub Pages UI → click **⚙ Settings** → paste your Render URL
+7. Click **Sign In with Steam** — your real game library loads!
+
+---
+
+## Platform Setup
+
+### Steam ✅ (easiest — works without API key for public profiles)
+- Login: Free, no registration needed (Steam OpenID)
+- API key: Optional. Get one free at [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey)
+- Without API key: works if your Steam game list is set to **Public** in privacy settings
+- Set `STEAM_API_KEY` in Render env vars for reliable access
+
+### Epic Games
+1. Register at [dev.epicgames.com/portal](https://dev.epicgames.com/portal)
+2. Create an Application
+3. Add redirect URI: `https://nexus-game-launcher.onrender.com/auth/epic/callback`
+4. Copy Client ID & Secret → set as `EPIC_CLIENT_ID` and `EPIC_CLIENT_SECRET` in Render
+
+### GOG
+1. Apply at [gog.com/developer](https://www.gog.com/developer)
+2. Set redirect URI: `https://nexus-game-launcher.onrender.com/auth/gog/callback`
+3. Set `GOG_CLIENT_ID` and `GOG_CLIENT_SECRET` in Render
+
+### Xbox
+1. Register at [portal.azure.com](https://portal.azure.com) → App registrations → New registration
+2. Set redirect URI: `https://nexus-game-launcher.onrender.com/auth/xbox/callback`
+3. Add permission: **XboxLive.signin** (under Microsoft Graph → Delegated)
+4. Set `MICROSOFT_CLIENT_ID` and `MICROSOFT_CLIENT_SECRET` in Render
+
+### EA / Origin
+EA does not provide a public API for third-party game library access. Not supported.
+
+---
+
+## Local Development
+
+```bash
+# Backend
+cp .env.example .env
+# Edit .env — set BACKEND_URL=http://localhost:8000 and add your API keys
+
+cd backend
+python -m venv venv
+source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+
+# API docs: http://localhost:8000/docs
+```
+
+Open `docs/index.html` in a browser → click **⚙ Settings** → set Backend URL to `http://localhost:8000`.
+
+---
+
+## Architecture
+
+```
+Browser (GitHub Pages)          Render (FastAPI)
+       │                               │
+       │  click "Sign in with Steam"   │
+       │──────── redirect ────────────►│ /auth/steam/login
+       │                               │──► Steam OpenID
+       │◄── redirect with token ───────│ /auth/steam/callback (verifies)
+       │                               │
+       │  GET /api/games/steam?token=X │
+       │──────────────────────────────►│
+       │                               │──► Steam Web API (your games)
+       │◄── your real game library ────│
+       │                               │
+```
+
+Sessions expire after 8 hours. No account data is ever written to disk — only a temporary session ID.
+
+---
 
 ## Tech Stack
 
-*   **Backend:** Python, FastAPI, SQLAlchemy, PostgreSQL
-*   **Frontend:** React, TypeScript
-*   **Desktop Application:** Electron
-*   **Containerization:** Docker
-
-## Installation
-
-### Prerequisites
-
-Before you begin, ensure you have the following installed:
-
-*   **Node.js:** (LTS version recommended) - [https://nodejs.org/](https://nodejs.org/)
-*   **Python:** (3.8+) - [https://www.python.org/](https://www.python.org/)
-*   **Docker:** (if using Docker setup) - [https://www.docker.com/get-started](https://www.docker.com/get-started)
-*   **Git:** - [https://git-scm.com/downloads](https://git-scm.com/downloads)
-
-### Backend Setup
-
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/yourusername/multi-platform-game-launcher.git
-    cd multi-platform-game-launcher
-    ```
-
-2.  **Create a virtual environment (recommended):**
-    ```bash
-    python -m venv venv
-    source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-    ```
-
-3.  **Install backend dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-4.  **Set up environment variables:**
-    Create a `.env` file in the root of the project and add your PostgreSQL connection details and any necessary API keys for game platforms.
-
-    ```env
-    # Example .env file
-    DATABASE_URL="postgresql://user:password@host:port/dbname"
-    STEAM_API_KEY="your_steam_api_key"
-    EPIC_CLIENT_ID="your_epic_client_id"
-    EPIC_CLIENT_SECRET="your_epic_client_secret"
-    # Add other platform-specific credentials as needed
-    ```
-
-5.  **Run database migrations:**
-    (Assuming you have a migration tool like Alembic set up)
-    ```bash
-    alembic upgrade head
-    ```
-    *Note: If you haven't set up Alembic, you'll need to configure it or use SQLAlchemy's ORM to create tables directly.*
-
-6.  **Start the FastAPI backend:**
-    ```bash
-    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-    ```
-
-### Frontend Setup
-
-1.  **Navigate to the frontend directory:**
-    ```bash
-    cd frontend
-    ```
-
-2.  **Install frontend dependencies:**
-    ```bash
-    npm install
-    ```
-
-3.  **Start the React development server:**
-    ```bash
-    npm start
-    ```
-    This will typically start the frontend on `http://localhost:3000`.
-
-### Docker Setup
-
-1.  **Build the Docker images:**
-    ```bash
-    docker-compose build
-    ```
-
-2.  **Start the Docker containers:**
-    ```bash
-    docker-compose up
-    ```
-    This command will start the PostgreSQL database, the FastAPI backend, and the React frontend in separate containers. You may need to configure environment variables for the backend container as described in the backend setup section, potentially by mounting a `.env` file or using Docker secrets.
-
-## Usage
-
-Once the backend and frontend are running, you can access the application through your web browser at `http://localhost:3000` (or the port specified by your frontend setup).
-
-Follow the on-screen instructions to connect your game platform accounts and import your game library.
-
-## Contributing
-
-We welcome contributions! Please read our [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to submit bug reports, feature requests, and pull requests.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Vanilla HTML/CSS/JS, deployed on GitHub Pages |
+| Backend | Python 3.11, FastAPI, httpx |
+| Hosting | Render (free tier) |
+| Auth | Steam OpenID 2.0, OAuth 2.0 (Epic, GOG, Xbox) |
+| Storage | None (sessions in `/tmp`, cleared on restart) |
