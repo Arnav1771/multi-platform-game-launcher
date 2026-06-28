@@ -337,9 +337,13 @@
 
         <div class="cs-cards" id="cs-cards"></div>
 
-        <div style="font-size:12px;color:var(--dim);max-width:520px;line-height:1.7">
-          <strong style="color:var(--text)">Need a backend?</strong> This launcher requires the <a href="https://github.com/Arnav1771/multi-platform-game-launcher/blob/main/backend/main.py" style="color:var(--cyn)">FastAPI backend</a> running to handle OAuth.
-          Default: <code style="background:rgba(255,255,255,.07);padding:1px 6px;border-radius:4px">http://localhost:8000</code> — change it in ⚙ Settings.
+        <div style="font-size:12px;color:var(--dim);max-width:560px;line-height:1.8;padding:16px 20px;background:rgba(108,99,255,.07);border:1px solid rgba(108,99,255,.2);border-radius:12px">
+          <strong style="color:var(--text)">🚀 Easiest setup — deploy to Vercel (free):</strong>
+          <a href="https://vercel.com/new/clone?repository-url=https://github.com/Arnav1771/multi-platform-game-launcher" style="color:var(--cyn)" target="_blank">One-click Vercel deploy →</a>
+          Frontend &amp; backend deploy together — no URL to configure, no CORS issues.
+          <br><br>
+          <strong style="color:var(--text)">Already deployed?</strong> If this page is live on Vercel, just click Sign In above — it works automatically.
+          If running locally, click ⚙ Settings and set Backend URL to <code style="background:rgba(255,255,255,.07);padding:1px 6px;border-radius:4px">http://localhost:8000</code>.
         </div>
       </div>
 
@@ -392,11 +396,15 @@
 <div id="cfg-panel">
   <div class="cfg-box">
     <div class="cfg-ttl">Settings</div>
-    <div class="cfg-stl">Configure how NEXUS connects to the backend and your platform accounts.</div>
+    <div class="cfg-stl">Configure your backend URL and platform credentials.</div>
     <div class="cfg-row">
       <label class="cfg-lbl" for="beUrl">Backend URL</label>
-      <input class="cfg-inp" id="beUrl" type="url" placeholder="http://localhost:8000">
-      <div class="cfg-hint">The FastAPI server. <a href="https://github.com/Arnav1771/multi-platform-game-launcher/tree/main/backend" target="_blank">Deploy guide →</a></div>
+      <input class="cfg-inp" id="beUrl" type="url" placeholder="Leave empty if deployed on Vercel (same origin)">
+      <div class="cfg-hint">
+        <strong>Vercel:</strong> leave empty — backend is bundled with this site.<br>
+        <strong>Render / local:</strong> paste your server URL (e.g. <code style="font-size:11px">https://nexus-game-launcher.onrender.com</code>).
+        <a href="https://github.com/Arnav1771/multi-platform-game-launcher#one-click-backend-deploy-render--free" target="_blank">Deploy guide →</a>
+      </div>
     </div>
     <div class="cfg-row">
       <label class="cfg-lbl" for="steamKeyInpCfg">Steam API Key</label>
@@ -455,8 +463,17 @@ const LS = {
   del(k)              { localStorage.removeItem('nexus_'+k); },
 };
 
+// Default backend URL:
+//   ''  = same origin (Vercel — frontend + backend on same domain, no config needed)
+//   'http://localhost:8000' = local dev
+//   'https://nexus-game-launcher.onrender.com' = Render deployment
+const _isSameOriginDeploy = !window.location.hostname.includes('localhost') &&
+  !window.location.hostname.includes('127.0.0.1') &&
+  !window.location.hostname.includes('file:');
+const _defaultBackend = _isSameOriginDeploy ? '' : 'http://localhost:8000';
+
 let CFG = {
-  backendUrl:  LS.get('backend_url', 'http://localhost:8000'),
+  backendUrl:  LS.get('backend_url', _defaultBackend),
   steamApiKey: LS.get('steam_api_key', ''),
 };
 
@@ -514,7 +531,9 @@ function toast(title,msg,color='#6c63ff'){
 }
 
 async function apiFetch(path, opts={}) {
-  const url = CFG.backendUrl.replace(/\/$/, '') + path;
+  // Empty backendUrl = same origin (Vercel deployment)
+  const base = (CFG.backendUrl || '').replace(/\/$/, '');
+  const url  = base + path;
   const r = await fetch(url, { ...opts, headers: {'Content-Type':'application/json', ...(opts.headers||{})} });
   if (!r.ok) {
     let detail;
@@ -594,8 +613,9 @@ function buildConnectScreen() {
 
 function connectPlatform(id, path) {
   if (!path) return toast('Not Available', 'This platform does not provide a public API.', '#f87171');
-  // Open OAuth in same tab — backend will redirect back with token in URL
-  window.location.href = CFG.backendUrl.replace(/\/$/, '') + path;
+  // Empty backendUrl = same origin (Vercel)
+  const base = (CFG.backendUrl || '').replace(/\/$/, '');
+  window.location.href = base + path;
 }
 
 function disconnect(id) {
